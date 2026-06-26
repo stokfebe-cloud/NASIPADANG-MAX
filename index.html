@@ -1,0 +1,1340 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Warung AI Scan</title>
+  <meta name="description" content="Scan wajah, baca mood, dapatkan rekomendasi menu Warung Padang/Indonesia sesuai ekspresi secara real-time." />
+  <meta name="theme-color" content="#0f0d0b" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #0f0d0b;
+      --bg-soft: #16120f;
+      --panel: rgba(22, 18, 15, 0.8);
+      --panel-strong: rgba(15, 13, 11, 0.9);
+      --gold: #d6b36a;
+      --gold-soft: #f0d79d;
+      --gold-dim: rgba(214, 179, 106, 0.2);
+      --text: #f7f2e9;
+      --muted: #d1c2ac;
+      --line: rgba(255, 236, 202, 0.12);
+      --success: #9ad1ad;
+      --danger: #f0a58a;
+      --shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+      --radius-xl: 28px;
+      --radius-lg: 22px;
+      --radius-md: 16px;
+      --container: 1180px;
+      --warung-photo: url('https://oci-useast-backend-public.dupdub.com/subtitles/image/3a79bb1a-6509-4f13-be70-c73ac22c311e.PNG');
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: radial-gradient(circle at top, #1c1611 0%, #100d0b 45%, #090807 100%);
+      color: var(--text);
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      min-height: 100%;
+    }
+
+    body { overflow-x: hidden; }
+
+    img, video {
+      display: block;
+      max-width: 100%;
+    }
+
+    button {
+      border: 0;
+      font: inherit;
+      cursor: pointer;
+    }
+
+    .app {
+      min-height: 100vh;
+      position: relative;
+      isolation: isolate;
+    }
+
+    .screen {
+      min-height: 100vh;
+      display: none;
+      position: relative;
+    }
+
+    .screen.active {
+      display: block;
+      animation: fadeIn .4s ease;
+    }
+
+    .container {
+      width: min(var(--container), calc(100% - 32px));
+      margin: 0 auto;
+    }
+
+    .bg-photo {
+      position: absolute;
+      inset: 0;
+      z-index: -3;
+      background-image: var(--warung-photo);
+      background-size: cover;
+      background-position: center;
+      filter: brightness(.52) saturate(.92);
+      transform: scale(1.03);
+    }
+
+    .bg-photo::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(180deg, rgba(6,5,4,.55) 0%, rgba(12,10,8,.75) 40%, rgba(9,8,7,.94) 100%),
+        radial-gradient(circle at 15% 20%, rgba(214,179,106,.18), transparent 34%),
+        radial-gradient(circle at 85% 18%, rgba(214,179,106,.08), transparent 24%);
+    }
+
+    .grain, .noise {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .grain {
+      z-index: -2;
+      opacity: .06;
+      background-image:
+        linear-gradient(120deg, rgba(255,255,255,.04) 25%, transparent 25%),
+        linear-gradient(240deg, rgba(255,255,255,.03) 25%, transparent 25%);
+      background-size: 3px 3px;
+    }
+
+    .noise {
+      z-index: -1;
+      opacity: .07;
+      background-image:
+        radial-gradient(circle at 20% 20%, rgba(255,255,255,.08) 0 1px, transparent 1px),
+        radial-gradient(circle at 80% 40%, rgba(255,255,255,.06) 0 1px, transparent 1px),
+        radial-gradient(circle at 40% 80%, rgba(255,255,255,.05) 0 1px, transparent 1px);
+      background-size: 18px 18px, 22px 22px, 26px 26px;
+    }
+
+    .brand-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(20, 16, 12, 0.62);
+      color: var(--gold-soft);
+      backdrop-filter: blur(10px);
+      font-size: 14px;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    .brand-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--gold-soft), #9f7331);
+      box-shadow: 0 0 18px rgba(214,179,106,.5);
+    }
+
+    .hero-wrap {
+      min-height: 100vh;
+      display: grid;
+      align-items: center;
+      padding: 30px 0;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap: 28px;
+      align-items: center;
+    }
+
+    .hero-copy {
+      padding: 18px 0;
+    }
+
+    .hero-title {
+      font-family: "Cormorant Garamond", serif;
+      font-size: clamp(3.2rem, 7vw, 6.2rem);
+      line-height: .95;
+      margin: 18px 0;
+      letter-spacing: -.03em;
+      text-shadow: 0 10px 36px rgba(0,0,0,.38);
+    }
+
+    .hero-title .gold {
+      color: var(--gold-soft);
+    }
+
+    .hero-desc {
+      margin: 0 0 28px;
+      max-width: 640px;
+      color: var(--muted);
+      line-height: 1.85;
+      font-size: clamp(1rem, 2.1vw, 1.14rem);
+    }
+
+    .hero-actions,
+    .scan-actions,
+    .result-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+    }
+
+    .btn {
+      min-height: 52px;
+      padding: 14px 22px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      font-weight: 700;
+      transition: transform .2s ease, box-shadow .25s ease, background .25s ease;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+    }
+
+    .btn:focus-visible {
+      outline: 2px solid var(--gold-soft);
+      outline-offset: 3px;
+    }
+
+    .btn-primary {
+      color: #17120e;
+      background: linear-gradient(135deg, var(--gold-soft), var(--gold));
+      box-shadow: 0 14px 34px rgba(214,179,106,.26);
+    }
+
+    .btn-secondary {
+      color: var(--text);
+      border: 1px solid var(--line);
+      background: rgba(22, 18, 15, 0.6);
+      backdrop-filter: blur(12px);
+    }
+
+    .hero-card,
+    .scan-card,
+    .result-card,
+    .menu-card,
+    .warung-card,
+    .insight-card {
+      position: relative;
+      border-radius: var(--radius-xl);
+      border: 1px solid rgba(255,236,202,.12);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.015)),
+        rgba(14, 12, 10, .65);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+      overflow: hidden;
+    }
+
+    .hero-card,
+    .result-card {
+      padding: 26px;
+    }
+
+    .hero-card::before,
+    .scan-card::before,
+    .result-card::before,
+    .menu-card::before,
+    .warung-card::before,
+    .insight-card::before {
+      content: "";
+      position: absolute;
+      inset: -1px;
+      border-radius: inherit;
+      padding: 1px;
+      background: linear-gradient(135deg, rgba(240,215,157,.32), rgba(255,255,255,.03), rgba(214,179,106,.1));
+      -webkit-mask:
+        linear-gradient(#000 0 0) content-box,
+        linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+              mask-composite: exclude;
+      pointer-events: none;
+    }
+
+    .feature-list {
+      display: grid;
+      gap: 14px;
+      margin-top: 16px;
+    }
+
+    .feature-item {
+      display: flex;
+      gap: 14px;
+      padding: 14px;
+      border-radius: 18px;
+      background: rgba(255,255,255,.025);
+      border: 1px solid rgba(255,255,255,.05);
+    }
+
+    .feature-icon {
+      flex: 0 0 42px;
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      border-radius: 14px;
+      color: var(--gold-soft);
+      background: linear-gradient(135deg, rgba(240,215,157,.16), rgba(214,179,106,.08));
+      border: 1px solid rgba(240,215,157,.16);
+    }
+
+    .feature-item h3 {
+      margin: 0 0 4px;
+      font-size: 15px;
+    }
+
+    .feature-item p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.65;
+    }
+
+    .mini-note {
+      margin-top: 20px;
+      color: rgba(247,242,233,.72);
+      font-size: 13px;
+      line-height: 1.75;
+    }
+
+    .scan-layout {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 26px 0 40px;
+      background:
+        radial-gradient(circle at top, rgba(214,179,106,.11), transparent 24%),
+        linear-gradient(180deg, #0f0d0b 0%, #0a0908 100%);
+    }
+
+    .scan-shell {
+      width: min(980px, calc(100% - 24px));
+      display: grid;
+      gap: 22px;
+    }
+
+    .scan-title {
+      margin: 10px 0 0;
+      font-family: "Cormorant Garamond", serif;
+      font-size: clamp(2.2rem, 5vw, 3.6rem);
+      line-height: 1;
+    }
+
+    .scan-subtitle {
+      margin: 10px 0 0;
+      color: var(--muted);
+      line-height: 1.75;
+      max-width: 720px;
+    }
+
+    .scan-card {
+      padding: 16px;
+    }
+
+    .camera-stage {
+      position: relative;
+      overflow: hidden;
+      border-radius: 22px;
+      background: #0a0908;
+      aspect-ratio: 9 / 13;
+      max-height: min(72vh, 820px);
+      min-height: 480px;
+      width: 100%;
+      display: grid;
+      place-items: center;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: none !important;
+      background: #000;
+    }
+
+    .camera-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      display: grid;
+      place-items: center;
+    }
+
+    .face-frame {
+      width: min(62vw, 340px);
+      aspect-ratio: 0.84 / 1;
+      border-radius: 42% 42% 38% 38% / 34% 34% 46% 46%;
+      border: 2px solid rgba(240,215,157,.84);
+      box-shadow: 0 0 0 1px rgba(255,255,255,.06) inset, 0 0 30px rgba(214,179,106,.18);
+      position: relative;
+    }
+
+    .face-frame::before,
+    .face-frame::after {
+      content: "";
+      position: absolute;
+      width: 26px;
+      height: 26px;
+      border: 3px solid rgba(240,215,157,.9);
+    }
+
+    .face-frame::before {
+      left: -2px;
+      top: -2px;
+      border-right: 0;
+      border-bottom: 0;
+      border-top-left-radius: 16px;
+    }
+
+    .face-frame::after {
+      right: -2px;
+      bottom: -2px;
+      border-left: 0;
+      border-top: 0;
+      border-bottom-right-radius: 16px;
+    }
+
+    .scan-line {
+      position: absolute;
+      left: 9%;
+      right: 9%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--gold-soft), transparent);
+      box-shadow: 0 0 24px rgba(240,215,157,.82);
+      animation: scanMove 2.6s linear infinite;
+    }
+
+    .scan-pulse {
+      position: absolute;
+      width: min(62vw, 340px);
+      aspect-ratio: 0.84 / 1;
+      border-radius: 42% 42% 38% 38% / 34% 34% 46% 46%;
+      border: 1px solid rgba(214,179,106,.24);
+      animation: pulseRing 2.4s ease infinite;
+    }
+
+    .scan-bottom {
+      display: grid;
+      gap: 14px;
+      margin-top: 14px;
+    }
+
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .status-text {
+      font-weight: 700;
+      color: var(--gold-soft);
+    }
+
+    .status-helper {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .progress {
+      height: 12px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.05);
+    }
+
+    .progress-bar {
+      width: 0%;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #8d6326, var(--gold), var(--gold-soft));
+      transition: width .2s linear;
+    }
+
+    .scan-note,
+    .footer-note {
+      color: rgba(247,242,233,.7);
+      font-size: 13px;
+      line-height: 1.7;
+    }
+
+    .badge-inline,
+    .mood-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border-radius: 999px;
+      padding: 10px 14px;
+      font-weight: 700;
+    }
+
+    .badge-inline {
+      border: 1px solid rgba(255,236,202,.12);
+      background: rgba(255,255,255,.03);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .result-wrap {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      padding: 28px 0 40px;
+      background:
+        radial-gradient(circle at 20% 0%, rgba(214,179,106,.12), transparent 30%),
+        linear-gradient(180deg, #0d0b09, #090807 100%);
+    }
+
+    .result-grid {
+      display: grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap: 28px;
+      align-items: stretch;
+    }
+
+    .result-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+
+    .result-title {
+      margin: 0;
+      font-family: "Cormorant Garamond", serif;
+      font-size: clamp(2.3rem, 5vw, 4rem);
+      line-height: .95;
+    }
+
+    .mood-pill {
+      background: rgba(214,179,106,.12);
+      color: var(--gold-soft);
+      border: 1px solid rgba(214,179,106,.24);
+    }
+
+    .result-greeting,
+    .result-closing,
+    .menu-reason {
+      line-height: 1.85;
+    }
+
+    .result-greeting {
+      margin: 18px 0 0;
+      font-size: 1.05rem;
+    }
+
+    .menu-card {
+      margin-top: 18px;
+      padding: 22px;
+    }
+
+    .menu-label {
+      color: var(--gold-soft);
+      font-size: 13px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .menu-name {
+      margin: 0 0 10px;
+      font-size: clamp(1.6rem, 4vw, 2.4rem);
+      line-height: 1.1;
+      font-weight: 800;
+    }
+
+    .result-closing {
+      margin-top: 18px;
+      color: var(--muted);
+    }
+
+    .right-stack {
+      display: grid;
+      gap: 18px;
+    }
+
+    .warung-card {
+      min-height: 240px;
+    }
+
+    .warung-photo {
+      position: relative;
+      min-height: 240px;
+      height: 100%;
+      background-image: var(--warung-photo);
+      background-size: cover;
+      background-position: center;
+      filter: saturate(.94);
+    }
+
+    .warung-photo::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(180deg, rgba(10,9,8,.06) 0%, rgba(10,9,8,.68) 100%),
+        radial-gradient(circle at 80% 20%, rgba(214,179,106,.16), transparent 28%);
+    }
+
+    .warung-caption {
+      position: absolute;
+      left: 18px;
+      right: 18px;
+      bottom: 18px;
+      z-index: 1;
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: rgba(10,9,8,.58);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,236,202,.1);
+    }
+
+    .warung-caption strong {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--gold-soft);
+    }
+
+    .warung-caption span {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .insight-card {
+      padding: 22px;
+      border-radius: 24px;
+      background: rgba(255,255,255,.03);
+    }
+
+    .insight-card h3 {
+      margin: 0 0 10px;
+      color: var(--gold-soft);
+      font-size: 1rem;
+    }
+
+    .insight-card p,
+    .insight-card ul {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.75;
+    }
+
+    .insight-card ul {
+      padding-left: 18px;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes scanMove {
+      0% { top: 15%; opacity: .16; }
+      10% { opacity: .95; }
+      50% { top: 50%; opacity: 1; }
+      100% { top: 84%; opacity: .18; }
+    }
+
+    @keyframes pulseRing {
+      0% { transform: scale(.985); opacity: .22; }
+      50% { transform: scale(1.018); opacity: .44; }
+      100% { transform: scale(.985); opacity: .22; }
+    }
+
+    @media (max-width: 960px) {
+      .hero-grid,
+      .result-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .camera-stage {
+        min-height: 420px;
+        max-height: 68vh;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .container {
+        width: min(var(--container), calc(100% - 20px));
+      }
+
+      .camera-stage {
+        aspect-ratio: 3 / 4.6;
+        min-height: 380px;
+      }
+
+      .face-frame,
+      .scan-pulse {
+        width: min(74vw, 290px);
+      }
+
+      .hero-actions,
+      .scan-actions,
+      .result-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+      }
+
+      .btn {
+        width: 100%;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation: none !important;
+        transition: none !important;
+        scroll-behavior: auto !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section id="screen-home" class="screen active">
+      <div class="bg-photo" aria-hidden="true"></div>
+      <div class="grain" aria-hidden="true"></div>
+      <div class="noise" aria-hidden="true"></div>
+
+      <div class="hero-wrap">
+        <div class="container hero-grid">
+          <div class="hero-copy">
+            <div class="brand-chip">
+              <span class="brand-dot"></span>
+              Warung AI Scan
+            </div>
+
+            <h1 class="hero-title">
+              Scan wajah, <span class="gold">baca mood,</span><br />
+              lalu pilih menu yang terasa pas.
+            </h1>
+
+            <p class="hero-desc">
+              Selamat datang di <strong>Warung AI Scan</strong>. Arahkan wajah Anda ke kamera,
+              biarkan sistem membaca ekspresi secara real-time, lalu kami bantu rekomendasikan
+              menu warung Padang/Indonesia yang cocok dengan suasana hati hari ini.
+            </p>
+
+            <div class="hero-actions">
+              <button id="startBtn" class="btn btn-primary" type="button">Mulai Scan Wajah</button>
+              <button id="aboutBtn" class="btn btn-secondary" type="button">Cara Kerjanya</button>
+            </div>
+
+            <p class="mini-note">
+              Sistem ini fokus pada <strong>mood/ekspresi</strong>, bukan menilai penampilan.
+              Jika wajah belum terbaca atau model gagal dimuat, Anda tetap akan mendapatkan
+              rekomendasi menu secara ramah agar pengalaman tidak terhenti.
+            </p>
+          </div>
+
+          <aside class="hero-card">
+            <div class="brand-chip" style="margin-bottom:16px;">
+              <span class="brand-dot"></span>
+              Pengalaman Interaktif
+            </div>
+
+            <div class="feature-list">
+              <div class="feature-item">
+                <div class="feature-icon">📷</div>
+                <div>
+                  <h3>Kamera depan aktif</h3>
+                  <p>Video tampil natural sesuai sensor kamera, tidak dibalik seperti cermin.</p>
+                </div>
+              </div>
+
+              <div class="feature-item">
+                <div class="feature-icon">🧠</div>
+                <div>
+                  <h3>AI ekspresi nyata</h3>
+                  <p>Menggunakan face-api.js langsung di browser untuk membaca ekspresi secara real-time.</p>
+                </div>
+              </div>
+
+              <div class="feature-item">
+                <div class="feature-icon">🍛</div>
+                <div>
+                  <h3>Rekomendasi yang hangat</h3>
+                  <p>Menu dipilih berdasarkan mood dominan agar hasil terasa personal dan tidak monoton.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="mini-note">
+              <strong>Tips:</strong> hadap kamera dari jarak sedang, posisikan wajah di tengah bingkai,
+              dan usahakan pencahayaan cukup agar ekspresi lebih mudah terbaca.
+            </div>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <section id="screen-scan" class="screen">
+      <div class="scan-layout">
+        <div class="scan-shell">
+          <div>
+            <div class="brand-chip">
+              <span class="brand-dot"></span>
+              Mode Scan Aktif
+            </div>
+            <h2 class="scan-title">Membaca ekspresi, memilih menu yang pas.</h2>
+            <p class="scan-subtitle">
+              Posisikan wajah Anda di tengah bingkai. Proses scan berjalan selama sekitar
+              <strong>10 detik</strong> untuk menangkap mood yang paling dominan.
+            </p>
+          </div>
+
+          <div class="scan-card">
+            <div class="badge-inline" id="aiStatusBadge" style="margin-bottom:14px;">Menyiapkan model AI…</div>
+
+            <div class="camera-stage">
+              <video id="video" autoplay muted playsinline></video>
+
+              <div class="camera-overlay" aria-hidden="true">
+                <div class="scan-pulse"></div>
+                <div class="face-frame"></div>
+                <div class="scan-line"></div>
+              </div>
+            </div>
+
+            <div class="scan-bottom">
+              <div class="status-row">
+                <div class="status-text" id="scanStatus">Menyiapkan kamera…</div>
+                <div class="status-helper" id="scanTimer">00 / 10 detik</div>
+              </div>
+
+              <div class="progress">
+                <div class="progress-bar" id="progressBar"></div>
+              </div>
+
+              <div class="scan-actions">
+                <button id="cancelBtn" class="btn btn-secondary" type="button">Kembali</button>
+                <button id="retryBtn" class="btn btn-secondary hidden" type="button">Coba Lagi</button>
+              </div>
+
+              <div class="scan-note">
+                Jika wajah belum terdeteksi atau model AI tidak berhasil dimuat,
+                sistem tetap akan menampilkan rekomendasi menu cadangan agar Anda tidak stuck.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="screen-result" class="screen">
+      <div class="result-wrap">
+        <div class="container result-grid">
+          <section class="result-card">
+            <div class="result-head">
+              <div>
+                <div class="brand-chip">
+                  <span class="brand-dot"></span>
+                  Hasil Rekomendasi
+                </div>
+                <h2 class="result-title">Menu yang cocok untuk suasana hati Anda.</h2>
+              </div>
+              <div class="mood-pill" id="moodPill">Mood: Menunggu…</div>
+            </div>
+
+            <p class="result-greeting" id="greetingText">
+              Terima kasih sudah mencoba Warung AI Scan.
+            </p>
+
+            <div class="menu-card">
+              <div class="menu-label">Menu pilihan hari ini</div>
+              <h3 class="menu-name" id="menuName">Ayam Rendang</h3>
+              <p class="menu-reason" id="menuReason">Menu ini cocok untuk menemani ritme hari Anda.</p>
+            </div>
+
+            <p class="result-closing" id="closingText">
+              Semoga makanan yang Anda pilih bisa jadi jeda yang menyenangkan hari ini.
+            </p>
+
+            <div class="result-actions" style="margin-top:22px;">
+              <button id="scanAgainBtn" class="btn btn-primary" type="button">Scan Lagi</button>
+              <button id="backHomeBtn" class="btn btn-secondary" type="button">Kembali ke Awal</button>
+            </div>
+
+            <div class="footer-note" id="fallbackNote" style="margin-top:14px;">
+              Hasil dibaca dari ekspresi wajah selama proses scan. Bila ekspresi belum tertangkap dengan jelas,
+              sistem akan memberi rekomendasi alternatif yang tetap ramah.
+            </div>
+          </section>
+
+          <aside class="right-stack">
+            <div class="warung-card">
+              <div class="warung-photo">
+                <div class="warung-caption">
+                  <strong>Warung kami</strong>
+                  <span>Tempat singgah untuk rasa yang akrab, hangat, dan cocok menemani berbagai suasana hati.</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="insight-card">
+              <h3>Tentang AI scan</h3>
+              <p>
+                Sistem mencoba membaca ekspresi dominan seperti senang, netral, sedih, terkejut,
+                atau lelah, lalu mencocokkannya dengan menu yang paling pas secara rasa dan suasana.
+              </p>
+            </div>
+
+            <div class="insight-card">
+              <h3>Yang kami jaga</h3>
+              <ul>
+                <li>Tidak ada penilaian wajah atau penampilan.</li>
+                <li>Tidak ada ranking, tier, atau skor terhadap orang.</li>
+                <li>Output hanya seputar mood dan rekomendasi menu.</li>
+              </ul>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (() => {
+      const MODEL_URL = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.13/model/";
+      const SCAN_DURATION = 10000;
+      const DETECT_INTERVAL = 450;
+
+      const screens = {
+        home: document.getElementById("screen-home"),
+        scan: document.getElementById("screen-scan"),
+        result: document.getElementById("screen-result"),
+      };
+
+      const startBtn = document.getElementById("startBtn");
+      const aboutBtn = document.getElementById("aboutBtn");
+      const cancelBtn = document.getElementById("cancelBtn");
+      const retryBtn = document.getElementById("retryBtn");
+      const scanAgainBtn = document.getElementById("scanAgainBtn");
+      const backHomeBtn = document.getElementById("backHomeBtn");
+
+      const video = document.getElementById("video");
+      const aiStatusBadge = document.getElementById("aiStatusBadge");
+      const scanStatus = document.getElementById("scanStatus");
+      const scanTimer = document.getElementById("scanTimer");
+      const progressBar = document.getElementById("progressBar");
+
+      const moodPill = document.getElementById("moodPill");
+      const greetingText = document.getElementById("greetingText");
+      const menuName = document.getElementById("menuName");
+      const menuReason = document.getElementById("menuReason");
+      const closingText = document.getElementById("closingText");
+      const fallbackNote = document.getElementById("fallbackNote");
+
+      let mediaStream = null;
+      let progressTimer = null;
+      let detectTimer = null;
+      let statusTimer = null;
+      let scanStart = 0;
+      let collectedExpressions = [];
+      let modelsReady = false;
+      let modelAttempted = false;
+
+      const statusMessages = [
+        "Menyiapkan kamera…",
+        "Mencari posisi wajah terbaik…",
+        "Membaca ekspresi secara real-time…",
+        "Menangkap mood yang paling dominan…",
+        "Mencocokkan suasana hati dengan menu…"
+      ];
+
+      const moodAliases = {
+        happy: "senang",
+        neutral: "netral",
+        sad: "sedih",
+        surprised: "terkejut",
+        angry: "lelah",
+        fearful: "lelah",
+        disgusted: "netral"
+      };
+
+      const moodContent = {
+        senang: {
+          greetings: [
+            "Wah, suasana hati Anda terasa cerah hari ini. Semoga momen baik ini makin lengkap dengan hidangan yang memanjakan selera.",
+            "Kelihatannya Anda sedang membawa energi yang ringan dan menyenangkan. Enak sekali kalau disambut menu yang sama hangatnya.",
+            "Mood Anda terlihat ceria. Saat seperti ini paling pas ditemani makanan yang nikmat dan bikin hari makin berkesan."
+          ],
+          closings: [
+            "Semoga pilihan ini menjaga semangat baik Anda sampai hari selesai.",
+            "Mudah-mudahan suapan pertama nanti bikin hari Anda makin menyenangkan.",
+            "Selamat menikmati, semoga kebahagiaan kecil hari ini terus bertambah."
+          ],
+          menus: [
+            { name: "Ayam Bakar", reason: "Rasa bakarnya hangat dan akrab, cocok untuk mood yang sedang cerah karena terasa santai tapi tetap istimewa." },
+            { name: "Ikan Bakar", reason: "Pilihan ini pas saat hati sedang ringan—gurih, harum, dan terasa menyegarkan untuk menemani suasana yang baik." },
+            { name: "Ayam Kecap", reason: "Manis-gurihnya lembut dan menenangkan, cocok untuk mempertahankan mood yang sedang enak." },
+            { name: "Ikan Bakar Nila", reason: "Cocok untuk suasana hati yang ceria karena rasanya bersih, hangat, dan tetap terasa spesial." }
+          ]
+        },
+        netral: {
+          greetings: [
+            "Hari ini terasa tenang dan seimbang. Kadang justru momen seperti ini paling enak ditemani menu yang pas dan menguatkan.",
+            "Suasana Anda terlihat kalem. Mari pilih hidangan yang nyaman di lidah dan memberi rasa puas tanpa berlebihan.",
+            "Mood Anda cenderung stabil dan santai. Menu yang hangat dan akrab biasanya paling pas untuk ritme seperti ini."
+          ],
+          closings: [
+            "Semoga pilihan ini jadi teman makan yang pas untuk hari yang berjalan pelan tapi baik.",
+            "Semoga waktu makan Anda nanti terasa sederhana, hangat, dan memuaskan.",
+            "Mudah-mudahan menu ini menjaga hari Anda tetap nyaman sampai malam."
+          ],
+          menus: [
+            { name: "Ayam Rendang", reason: "Rasanya kaya dan seimbang, cocok untuk mood yang netral karena memberi kepuasan tanpa terasa terlalu ramai." },
+            { name: "Rendang", reason: "Pilihan klasik yang mantap untuk suasana tenang—berisi, akrab, dan selalu terasa memuaskan." },
+            { name: "Pangek Masin", reason: "Karakter rasanya tegas tapi tidak berlebihan, cocok saat Anda ingin sesuatu yang menghangatkan dan fokus." },
+            { name: "Cancang", reason: "Tekstur dan bumbunya memberi dorongan rasa yang pas untuk hari yang ingin dijalani dengan mantap." }
+          ]
+        },
+        sedih: {
+          greetings: [
+            "Kalau hari ini terasa agak berat, tidak apa-apa. Semoga ada sedikit kehangatan yang bisa membantu menenangkan hati Anda.",
+            "Terima kasih sudah mampir di tengah hari yang mungkin tidak ringan. Mari pilih menu yang terasa seperti pelukan kecil lewat makanan.",
+            "Kalau suasana hati sedang turun, semoga hidangan yang tepat bisa memberi jeda yang menenangkan dan menguatkan."
+          ],
+          closings: [
+            "Semoga pilihan ini memberi sedikit rasa nyaman dan membuat langkah berikutnya terasa lebih ringan.",
+            "Mudah-mudahan makanan hangat hari ini bisa jadi teman baik untuk menenangkan hati.",
+            "Semoga setelah makan, hati Anda terasa sedikit lebih lega dan hari berjalan lebih lembut."
+          ],
+          menus: [
+            { name: "Ayam Rendang", reason: "Bumbunya dalam dan hangat, cocok untuk suasana hati yang butuh rasa nyaman dan sedikit ketenangan." },
+            { name: "Rendang", reason: "Menu ini terasa penuh, akrab, dan menguatkan—pas untuk hari yang butuh sesuatu yang menenangkan." },
+            { name: "Ayam Kecap", reason: "Manis-gurihnya lebih lembut di suasana hati yang sensitif, memberi rasa nyaman tanpa terasa terlalu keras." },
+            { name: "Lele Bakar", reason: "Sederhana tapi menenangkan, cocok saat Anda ingin makanan yang terasa akrab dan tidak ribut." }
+          ]
+        },
+        terkejut: {
+          greetings: [
+            "Wah, sepertinya hari ini penuh kejutan. Menu dengan rasa tegas bisa jadi cara enak untuk menstabilkan ritme Anda lagi.",
+            "Ada energi yang cukup hidup dari ekspresi Anda. Mari pilih makanan yang bisa menemani momen yang terasa ramai ini.",
+            "Kalau hari ini terasa cepat dan penuh hal tak terduga, menu yang mantap bisa jadi jangkar kecil yang menyenangkan."
+          ],
+          closings: [
+            "Semoga pilihan ini membantu hari Anda kembali terasa pas dan menyenangkan.",
+            "Selamat menikmati—semoga setelah makan, semuanya terasa lebih tenang dan tetap seru.",
+            "Mudah-mudahan menu ini jadi jeda yang enak di tengah hari yang ramai."
+          ],
+          menus: [
+            { name: "Ayam Cabe Hijau", reason: "Rasanya segar dan punya tendangan yang pas, cocok untuk energi yang sedang tinggi atau penuh kejutan." },
+            { name: "Dendeng", reason: "Tekstur dan rasa yang tegas cocok untuk menyeimbangkan suasana yang sedang aktif." },
+            { name: "Ayam Geprek", reason: "Pilihan yang langsung terasa 'nendang', pas untuk mood yang butuh sesuatu yang ekspresif." },
+            { name: "Ikan Bakar Lauik", reason: "Karakter rasanya lebih hidup dan khas, cocok untuk suasana yang terasa tidak biasa." }
+          ]
+        },
+        lelah: {
+          greetings: [
+            "Kelihatannya Anda mungkin sedang capek. Semoga ada sepiring makanan hangat yang bisa jadi penyemangat kecil hari ini.",
+            "Kalau tenaga hari ini terasa menurun, mari cari menu yang menenangkan tapi tetap mengisi tenaga dengan baik.",
+            "Terima kasih sudah mampir. Saat tubuh dan pikiran terasa lelah, makanan yang pas sering jadi bentuk perhatian paling sederhana."
+          ],
+          closings: [
+            "Semoga pilihan ini memberi rasa hangat, tenaga baru, dan sedikit ruang untuk bernapas.",
+            "Mudah-mudahan setelah makan, badan terasa lebih ringan dan hati ikut tenang.",
+            "Semoga hidangan ini jadi penyemangat lembut untuk melanjutkan hari Anda."
+          ],
+          menus: [
+            { name: "Ayam Rendang", reason: "Bumbunya kaya dan mengenyangkan, cocok untuk mood lelah karena terasa menguatkan dan memulihkan semangat makan." },
+            { name: "Pangek Masin", reason: "Rasa yang hangat dan dalam cocok untuk hari yang membutuhkan dorongan tenang, bukan kejutan." },
+            { name: "Cancang", reason: "Karakter rasanya mantap dan mengisi, pas untuk suasana tubuh yang butuh tenaga tambahan." },
+            { name: "Ayam Bakar", reason: "Nikmat, familiar, dan tidak berlebihan—cocok saat Anda ingin makan enak tanpa banyak berpikir." }
+          ]
+        }
+      };
+
+      const fallbackMenus = [
+        { mood: "netral", name: "Ayam Rendang", reason: "Pilihan aman yang kaya rasa dan cocok dinikmati di hampir semua suasana hati." },
+        { mood: "senang", name: "Ikan Bakar", reason: "Harum bakarnya terasa ringan dan menyenangkan, pas untuk menemani momen yang baik." },
+        { mood: "lelah", name: "Pangek Masin", reason: "Karakter rasanya hangat dan mantap, cocok untuk hari yang membutuhkan sedikit penguat." },
+        { mood: "terkejut", name: "Ayam Cabe Hijau", reason: "Segar dan berani, cocok untuk suasana yang terasa hidup dan penuh energi." }
+      ];
+
+      function showScreen(name) {
+        Object.values(screens).forEach(el => el.classList.remove("active"));
+        screens[name].classList.add("active");
+      }
+
+      function randomPick(arr) {
+        return arr[Math.floor(Math.random() * arr.length)];
+      }
+
+      async function loadModels() {
+        if (modelsReady) return true;
+        if (modelAttempted) return false;
+        modelAttempted = true;
+
+        try {
+          aiStatusBadge.textContent = "Memuat model AI ekspresi…";
+
+          await Promise.all([
+            faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+            faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL)
+          ]);
+
+          modelsReady = true;
+          aiStatusBadge.textContent = "Model AI siap";
+          return true;
+        } catch (err) {
+          console.error("Gagal load model:", err);
+          aiStatusBadge.textContent = "Model AI gagal dimuat, fallback aktif";
+          return false;
+        }
+      }
+
+      async function startCamera() {
+        stopCamera();
+
+        const constraints = {
+          audio: false,
+          video: {
+            facingMode: "user",
+            width: { ideal: 720 },
+            height: { ideal: 960 }
+          }
+        };
+
+        try {
+          mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+          video.srcObject = mediaStream;
+          await video.play();
+          scanStatus.textContent = "Kamera aktif. Posisikan wajah Anda di tengah bingkai.";
+          return true;
+        } catch (err) {
+          console.error("Gagal akses kamera:", err);
+          scanStatus.textContent = "Kamera belum bisa diakses. Kami akan menyiapkan rekomendasi alternatif.";
+          return false;
+        }
+      }
+
+      function stopCamera() {
+        if (video.srcObject) {
+          video.srcObject.getTracks().forEach(track => track.stop());
+          video.srcObject = null;
+        }
+        if (mediaStream) {
+          mediaStream.getTracks().forEach(track => track.stop());
+          mediaStream = null;
+        }
+      }
+
+      function resetScanState() {
+        collectedExpressions = [];
+        progressBar.style.width = "0%";
+        scanTimer.textContent = "00 / 10 detik";
+        scanStatus.textContent = "Menyiapkan kamera…";
+        retryBtn.classList.add("hidden");
+        clearInterval(progressTimer);
+        clearInterval(detectTimer);
+        clearInterval(statusTimer);
+      }
+
+      function stopAllScanTimers() {
+        clearInterval(progressTimer);
+        clearInterval(detectTimer);
+        clearInterval(statusTimer);
+      }
+
+      function aggregateMood(expressionsList) {
+        if (!expressionsList.length) return null;
+
+        const totals = {};
+        expressionsList.forEach(expressions => {
+          Object.entries(expressions).forEach(([key, value]) => {
+            totals[key] = (totals[key] || 0) + Number(value || 0);
+          });
+        });
+
+        let topKey = null;
+        let topValue = -1;
+
+        Object.entries(totals).forEach(([key, value]) => {
+          if (value > topValue) {
+            topKey = key;
+            topValue = value;
+          }
+        });
+
+        return moodAliases[topKey] || "netral";
+      }
+
+      async function detectExpressionsLoop() {
+        if (!modelsReady || !video.videoWidth) return;
+
+        try {
+          const detection = await faceapi
+            .detectSingleFace(
+              video,
+              new faceapi.TinyFaceDetectorOptions({
+                inputSize: 224,
+                scoreThreshold: 0.45
+              })
+            )
+            .withFaceExpressions();
+
+          if (detection && detection.expressions) {
+            collectedExpressions.push(detection.expressions);
+          }
+        } catch (err) {
+          console.error("Deteksi ekspresi gagal:", err);
+        }
+      }
+
+      function animateStatusTexts() {
+        let idx = 0;
+        scanStatus.textContent = statusMessages[idx];
+        statusTimer = setInterval(() => {
+          idx = (idx + 1) % statusMessages.length;
+          scanStatus.textContent = statusMessages[idx];
+        }, 1900);
+      }
+
+      async function beginScan() {
+        resetScanState();
+        showScreen("scan");
+
+        const hasFaceApi = typeof window.faceapi !== "undefined";
+        if (!hasFaceApi) {
+          aiStatusBadge.textContent = "Library AI belum termuat, fallback aktif";
+        }
+
+        const modelOk = hasFaceApi ? await loadModels() : false;
+        const cameraOk = await startCamera();
+
+        animateStatusTexts();
+        scanStart = Date.now();
+
+        progressTimer = setInterval(() => {
+          const elapsed = Date.now() - scanStart;
+          const progress = Math.min(100, (elapsed / SCAN_DURATION) * 100);
+          progressBar.style.width = progress + "%";
+
+          const sec = Math.min(10, Math.floor(elapsed / 1000));
+          scanTimer.textContent = `${String(sec).padStart(2, "0")} / 10 detik`;
+
+          if (elapsed >= SCAN_DURATION) {
+            finishScan(modelOk && cameraOk);
+          }
+        }, 120);
+
+        if (modelOk && cameraOk) {
+          detectTimer = setInterval(detectExpressionsLoop, DETECT_INTERVAL);
+        } else {
+          retryBtn.classList.remove("hidden");
+        }
+      }
+
+      function finishScan(attemptedDetection) {
+        stopAllScanTimers();
+        stopCamera();
+
+        const mood = attemptedDetection ? aggregateMood(collectedExpressions) : null;
+
+        if (mood) {
+          renderResult({ mood, fallback: false });
+        } else {
+          const fallback = randomPick(fallbackMenus);
+          renderResult({
+            mood: fallback.mood,
+            fallback: true,
+            forcedMenu: fallback
+          });
+        }
+
+        showScreen("result");
+      }
+
+      function renderResult({ mood, fallback = false, forcedMenu = null }) {
+        const safeMood = moodContent[mood] ? mood : "netral";
+        const content = moodContent[safeMood];
+        const menu = forcedMenu || randomPick(content.menus);
+
+        moodPill.textContent = `Mood: ${capitalize(safeMood)}`;
+        greetingText.textContent = randomPick(content.greetings);
+        menuName.textContent = menu.name;
+        menuReason.textContent = menu.reason;
+        closingText.textContent = randomPick(content.closings);
+
+        fallbackNote.textContent = fallback
+          ? "Wajah belum terbaca dengan cukup jelas atau model AI belum siap, jadi kami menyiapkan rekomendasi alternatif yang tetap hangat untuk Anda."
+          : "Hasil ini disusun dari ekspresi dominan yang tertangkap selama proses scan dan dipadukan dengan rekomendasi menu yang sesuai suasana hati.";
+      }
+
+      function capitalize(str) {
+        return str.charAt(0).toUpperCase() + str.slice(1);
+      }
+
+      function goHome() {
+        stopAllScanTimers();
+        stopCamera();
+        resetScanState();
+        showScreen("home");
+      }
+
+      startBtn.addEventListener("click", beginScan);
+      cancelBtn.addEventListener("click", goHome);
+      retryBtn.addEventListener("click", beginScan);
+      scanAgainBtn.addEventListener("click", beginScan);
+      backHomeBtn.addEventListener("click", goHome);
+
+      aboutBtn.addEventListener("click", () => {
+        alert(
+          "Cara kerja singkat:\
+\
+" +
+          "1. Tekan 'Mulai Scan Wajah'\
+" +
+          "2. Kamera depan aktif selama sekitar 10 detik\
+" +
+          "3. face-api.js membaca ekspresi dominan secara real-time\
+" +
+          "4. Sistem memberi rekomendasi menu sesuai mood\
+\
+" +
+          "Jika wajah belum terdeteksi atau model AI gagal dimuat, rekomendasi tetap akan tampil agar pengalaman tetap lancar."
+        );
+      });
+
+      window.addEventListener("beforeunload", () => {
+        stopAllScanTimers();
+        stopCamera();
+      });
+    })();
+  </script>
+</body>
+</html>
